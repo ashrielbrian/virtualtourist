@@ -125,7 +125,33 @@ class FlickrClient: NSObject {
         }
         
         task.resume()
+    }
+    
+    func getImageDataFrom(url: String, completionHandlerForGetImageData: @escaping (_ imageData: Data)-> Void) {
+        let url = URL(string: url)
         
+        if let url = url {
+            let request = URLRequest(url: url)
+            let task = session.dataTask(with: request) {data, response , error in
+                guard (error == nil) else {
+                    print (error?.localizedDescription ?? "error in obtaining data from URL provided")
+                    return
+                }
+                
+                guard let statusCode = (response as? HTTPURLResponse)?.statusCode, statusCode >= 200, statusCode <= 299 else {
+                    print ("Status code did not return 2xx when obtaining image data")
+                    return
+                }
+                
+                guard let data = data else {
+                    print ("No data returned from url")
+                    return
+                }
+                completionHandlerForGetImageData(data)
+                
+            }
+            task.resume()
+        }
     }
 }
 

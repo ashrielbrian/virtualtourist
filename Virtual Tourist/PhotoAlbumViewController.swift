@@ -72,6 +72,7 @@ class PhotoAlbumViewController: UIViewController {
             
             loadPhotosFromFlickr(location: pinLocation, completionHandlerForLoadPhotos: { 
                 // Once the photos have been downloaded from Flickr and save to Store and show on the collection view
+                
                 stack.save()
                 performUIUpdatesOnMain {
                     self.photosCollectionView.reloadData()
@@ -96,11 +97,10 @@ class PhotoAlbumViewController: UIViewController {
                     print ("No images returned")
                     return
                 }
-                
-                // With the array of media files obtained, begin a background batch operation to download the data, and save it to CoreData
-                self.downloadAndConvertImages(imagesURL, self.pin) {
+
+                self.saveURLToCoreData(imagesURL, self.pin, completionHandlerForSaveURL: { 
                     completionHandlerForLoadPhotos()
-                }
+                })
                 
             } else {
                 print ("Network request to Flickr failed. Try again later.")
@@ -108,23 +108,17 @@ class PhotoAlbumViewController: UIViewController {
         }
     }
     
-    func downloadAndConvertImages(_ imagesURL: [String], _ pin: Pin, completionHandlerForDownloadConvert: @escaping () -> Void) {
-        
+    func saveURLToCoreData(_ imagesURL: [String], _ pin: Pin, completionHandlerForSaveURL: @escaping () -> Void) {
         
         /* download picture and save INSIDE performBackgroundBatchOperation */
         let stack = self.delegate.stack
 
         for eachURL in imagesURL {
-            if let url = URL(string: eachURL) {
-                let imageData = try? Data(contentsOf: url)
-                    if let imageData = imageData {
-                        let photo = Photo(data: imageData, url: eachURL, context: stack.context)
-                        photo.pin = pin
-                        print ("saved photo \(eachURL)")
-                    }
-            }
+            let photo = Photo(url: eachURL, context: stack.context)
+            photo.pin = pin
         }
-        completionHandlerForDownloadConvert()
+        
+        completionHandlerForSaveURL()
     }
     
     @IBAction func newCollection(_ sender: Any) {
@@ -170,8 +164,8 @@ extension PhotoAlbumViewController {
             deleteAllPhotos()
             let pinLocation = CLLocation(latitude: pin.latitude, longitude: pin.longitude)
             loadPhotosFromFlickr(location: pinLocation, completionHandlerForLoadPhotos: { 
+                (imagesURL) in
                 
-                self.delegate.stack.save()
                 performUIUpdatesOnMain {
                     self.photosCollectionView.reloadData()
                 }
@@ -225,8 +219,6 @@ extension PhotoAlbumViewController: UICollectionViewDelegate {
         self.newCollectionButton.setTitle(deleteButtonTitle, for: .normal)
         self.selectedIndexPath.append(indexPath)
     }
-    
-    
 }
 
 extension PhotoAlbumViewController: UICollectionViewDataSource {
@@ -251,18 +243,18 @@ extension PhotoAlbumViewController: UICollectionViewDataSource {
                 cell.hideActivityIndicator()
             }
         } else {
-            if let imageURL = photoToLoad.imageURL {
-                let url = URL(string: imageURL)
-                
-                let imageData = try? Data(contentsOf: url!)
-                photoToLoad.imageData = imageData as! NSData
-                delegate.stack.save()
+            
+            flickrClientHandler.getImageDataFrom(url: photoToLoad.imageURL!, completionHandlerForGetImageData: { (imageData) in
                 
                 performUIUpdatesOnMain {
-                    cell.photoImage.image = UIImage(data: imageData!)
+                    cell.photoImage.image = UIImage(data: imageData)
                     cell.hideActivityIndicator()
                 }
-            }
+                
+                photoToLoad.imageData = imageData as NSData
+                self.delegate.stack.save()
+            })
+            
         }
         
         return cell
@@ -323,7 +315,14 @@ extension PhotoAlbumViewController: NSFetchedResultsControllerDelegate {
                 self.photosCollectionView.reloadItems(at: [indexPath as IndexPath])
             }
             
-        }, completion: nil)
+        }, completion:
+            { (success) in
+                if success {
+                    self.insertedIndexPath = []
+                    self.deletedIndexPath = []
+                    self.updatedIndexPath = []
+                }
+        })
         
     }
 }

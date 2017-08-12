@@ -14,4 +14,15 @@ class PhotoCollectionViewCell: UICollectionViewCell {
 
     @IBOutlet weak var photoActivityIndicator: UIActivityIndicatorView!
     
+    func showActivityIndicator() {
+        photoActivityIndicator.startAnimating()
+        photoActivityIndicator.hidesWhenStopped = true
+        photoActivityIndicator.center = contentView.center
+        UIApplication.shared.beginIgnoringInteractionEvents()
+    }
+    
+    func hideActivityIndicator() {
+        photoActivityIndicator.stopAnimating()
+        UIApplication.shared.endIgnoringInteractionEvents()
+    }
 }

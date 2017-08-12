@@ -18,8 +18,8 @@ struct CoreDataStack {
     internal let coordinator: NSPersistentStoreCoordinator
     private let modelURL: URL
     internal let dbURL: URL
-    internal let persistingContext: NSManagedObjectContext
-    internal let backgroundContext: NSManagedObjectContext
+    //internal let persistingContext: NSManagedObjectContext
+    //internal let backgroundContext: NSManagedObjectContext
     let context: NSManagedObjectContext
     
     
@@ -48,16 +48,16 @@ struct CoreDataStack {
         
         // Create a persistingContext (private queue) and a child (main queue)
         // Context to save (persist) data into the Store Coordinator
-        persistingContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
-        persistingContext.persistentStoreCoordinator = coordinator
+        //persistingContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
+        //persistingContext.persistentStoreCoordinator = coordinator
         
         // Context to show data to the UI
         context = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
-        context.parent = persistingContext
+        context.persistentStoreCoordinator = coordinator
         
         // Context to download data from the network
-        backgroundContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
-        backgroundContext.parent = context
+        // backgroundContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
+        // backgroundContext.parent = context
         
         // Add a SQLite store located in the documents folder
         let fileManager = FileManager.default
@@ -102,6 +102,8 @@ internal extension CoreDataStack {
 extension CoreDataStack {
     
     // Runs the batch processing using the background context
+    
+    /*
     typealias Batch = (_ workerContext: NSManagedObjectContext) -> Void
     
     func performBackgroundBatchOperation(batchCompletionHandler: @escaping Batch) {
@@ -119,11 +121,13 @@ extension CoreDataStack {
             }
         }
     }
+    */
 }
 
 // MARK: - CoreDataStack (Saving Data)
 extension CoreDataStack {
     
+    /*
     func save() {
         
         print("SAVE PERFORMED ------ ")
@@ -145,6 +149,18 @@ extension CoreDataStack {
                         fatalError("Error while saving persistingContext: \(error)")
                     }
                 }
+            }
+        }
+    }
+    */
+    
+    func save() {
+        if context.hasChanges {
+            do {
+                try context.save()
+            }
+            catch let err {
+                print (err.localizedDescription)
             }
         }
     }

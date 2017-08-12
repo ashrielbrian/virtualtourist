@@ -13,17 +13,25 @@ import CoreData
 
 class PhotoAlbumViewController: UIViewController {
 
+    // MARK: - Properties Declaration
     @IBOutlet weak var newCollectionButton: UIButton!
     @IBOutlet weak var photosCollectionView: UICollectionView!
+    @IBOutlet weak var mapView: MKMapView!
+    @IBOutlet weak var flowLayout: UICollectionViewFlowLayout!
     
     var pin = Pin()
     let delegate = AppDelegate.sharedInstance()
     let flickrClientHandler = FlickrClient.sharedInstance()
     
+    var selectedIndexPath = [IndexPath]()
     var insertedIndexPath: [IndexPath]!
     var deletedIndexPath: [IndexPath]!
     var updatedIndexPath: [IndexPath]!
     
+    let newCollectionButtonTitle = "New Collection"
+    let deleteButtonTitle = "Delete Selected Photos"
+    
+    // MARK: Initialising FetchedResultsController
     lazy var fetchedResultsController: NSFetchedResultsController<NSFetchRequestResult> = {
         
         // Create a fetch request to specify what objects this fetchedResultsController tracks
@@ -40,7 +48,6 @@ class PhotoAlbumViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        print ("PhotoAlbumVC: the pin latitude selected - \(pin.latitude)")
         
         fetchedResultsController.delegate = self
         photosCollectionView.delegate = self
@@ -48,6 +55,10 @@ class PhotoAlbumViewController: UIViewController {
         
         let stack = delegate.stack
         let pinLocation = CLLocation(latitude: pin.latitude, longitude: pin.longitude)
+        
+        // Show the pin on the MapView
+        presentPin(location: pinLocation)
+        configureFlowLayout()
         
         do {
             try fetchedResultsController.performFetch()
@@ -60,48 +71,14 @@ class PhotoAlbumViewController: UIViewController {
         if fetchedObjects?.count == 0 {
             
             loadPhotosFromFlickr(location: pinLocation, completionHandlerForLoadPhotos: { 
-                // Once the photos have been downloaded from Flickr and saved to the backgroundContext, save to Store and show on the collection view
+                // Once the photos have been downloaded from Flickr and save to Store and show on the collection view
+                stack.save()
                 performUIUpdatesOnMain {
-                    stack.save()
                     self.photosCollectionView.reloadData()
                 }
                 
             })
-            /*
-            flickrClientHandler.getImages(location: pinLocation.coordinate) {
-                
-                (success, errorString, imagesURL) in
-                print("BEFORE SUCCESS")
-                if success {
-                    guard (errorString == nil) else {
-                        print ("Error found in network request.")
-                        return
-                    }
-                    
-                    guard let imagesURL = imagesURL else{
-                        print ("No images returned")
-                        return
-                    }
-                    
-                    // With the array of media files obtained, begin a background batch operation to download the data, and save it to CoreData
-                    self.downloadAndConvertImages(imagesURL, self.pin) {
-                        stack.save()
-                        performUIUpdatesOnMain {
-                            self.photosCollectionView.reloadData()
-
-                        }
-                    }
-                    
-                } else {
-                    print ("Network request to Flickr failed. Try again later.")
-                }
-                
-            }
-            */
         }
-        
-        
-        
     }
 
     func loadPhotosFromFlickr(location: CLLocation, completionHandlerForLoadPhotos: @escaping () -> Void) {
@@ -128,9 +105,7 @@ class PhotoAlbumViewController: UIViewController {
             } else {
                 print ("Network request to Flickr failed. Try again later.")
             }
-            
         }
-        
     }
     
     func downloadAndConvertImages(_ imagesURL: [String], _ pin: Pin, completionHandlerForDownloadConvert: @escaping () -> Void) {
@@ -138,31 +113,118 @@ class PhotoAlbumViewController: UIViewController {
         
         /* download picture and save INSIDE performBackgroundBatchOperation */
         let stack = self.delegate.stack
-        stack.performBackgroundBatchOperation ( batchCompletionHandler: {
-            (workerContext) in
-         
-            for eachURL in imagesURL {
-                if let url = URL(string: eachURL) {
-                    let imageData = try? Data(contentsOf: url)
-                        if let imageData = imageData {
-                            let photo = Photo(data: imageData, url: eachURL, context: workerContext)
-                            photo.pin = pin
-                            print ("saved photo \(eachURL)")
-                        }
-                }
+
+        for eachURL in imagesURL {
+            if let url = URL(string: eachURL) {
+                let imageData = try? Data(contentsOf: url)
+                    if let imageData = imageData {
+                        let photo = Photo(data: imageData, url: eachURL, context: stack.context)
+                        photo.pin = pin
+                        print ("saved photo \(eachURL)")
+                    }
             }
-            completionHandlerForDownloadConvert()
-        })
+        }
+        completionHandlerForDownloadConvert()
     }
     
     @IBAction func newCollection(_ sender: Any) {
-        self.delegate.stack.save()
+        delete()
     }
 }
 
-// MARK: - Fetched Results Controller & Collection View
+// MARK: - Delete Photos
+extension PhotoAlbumViewController {
+    
+    // When deleting, obtain objects through the fetchedResultsController
+    func deleteSelectedPhotos() {
+        let stack = delegate.stack
+        
+        for indexPath in selectedIndexPath {
+            stack.context.delete(fetchedResultsController.object(at: indexPath) as! Photo)
+        }
+        
+        stack.save()
+        // Empties the selectedIndexPath array, to ensure it does not double count in future calls
+        selectedIndexPath = []
+        
+        performUIUpdatesOnMain {
+            self.photosCollectionView.reloadData()
+        }
+    }
+    
+    func deleteAllPhotos() {
+        let stack = delegate.stack
+        
+        for object in fetchedResultsController.fetchedObjects! {
+            stack.context.delete(object as! Photo)
+        }
+    }
+    
+    func delete() {
+        let currentTitle = newCollectionButton.titleLabel?.text
+        
+        // Check if the current button title is "Delete selected photos" or "New Collection"
+        switch currentTitle! {
+            
+        case newCollectionButtonTitle:
+            deleteAllPhotos()
+            let pinLocation = CLLocation(latitude: pin.latitude, longitude: pin.longitude)
+            loadPhotosFromFlickr(location: pinLocation, completionHandlerForLoadPhotos: { 
+                
+                self.delegate.stack.save()
+                performUIUpdatesOnMain {
+                    self.photosCollectionView.reloadData()
+                }
+            })
+
+        case deleteButtonTitle:
+            deleteSelectedPhotos()
+            self.newCollectionButton.setTitle(newCollectionButtonTitle, for: .normal)
+        
+        default:
+            break
+        }
+    }
+    
+}
+
+// MARK: - MapKit
+extension PhotoAlbumViewController {
+    
+    func presentPin(location: CLLocation) {
+        let annotation = MKPointAnnotation()
+        annotation.coordinate = location.coordinate
+        
+        let span = MKCoordinateSpanMake(1, 1)
+        let region = MKCoordinateRegionMake(location.coordinate, span)
+        
+        performUIUpdatesOnMain {
+            self.mapView.setRegion(region, animated: true)
+            self.mapView.addAnnotation(annotation)
+        }
+    }
+}
+
+// MARK: - Collection View
 extension PhotoAlbumViewController: UICollectionViewDelegate {
     
+    func configureFlowLayout() {
+        let space: CGFloat = 3.0
+        let dimension = (self.view.frame.size.width - (2 * space))/4.0
+        
+        self.flowLayout.minimumInteritemSpacing = space
+        self.flowLayout.minimumLineSpacing = space
+        self.flowLayout.itemSize = CGSize(width: dimension, height: dimension)
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        let cell = collectionView.cellForItem(at: indexPath)
+        
+        // Fade out the cell and change the button title
+        cell?.alpha = 0.5
+        self.newCollectionButton.setTitle(deleteButtonTitle, for: .normal)
+        self.selectedIndexPath.append(indexPath)
+    }
     
     
 }
@@ -176,30 +238,35 @@ extension PhotoAlbumViewController: UICollectionViewDataSource {
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "photoViewCell", for: indexPath) as! PhotoCollectionViewCell
-        let pinLocation = CLLocation(latitude: self.pin.latitude, longitude: self.pin.longitude)
         
-        cell.photoActivityIndicator.startAnimating()
-        cell.photoActivityIndicator.hidesWhenStopped = true
+        cell.showActivityIndicator()
         
         let photoToLoad = fetchedResultsController.object(at: indexPath) as! Photo
         
         if let imageData = photoToLoad.imageData {
+            
             print ("There's image data alright!! ---- ")
             performUIUpdatesOnMain {
                 cell.photoImage.image = UIImage(data: imageData as Data)
-                cell.photoActivityIndicator.stopAnimating()
+                cell.hideActivityIndicator()
             }
         } else {
-            loadPhotosFromFlickr(location: pinLocation, completionHandlerForLoadPhotos: { 
-                print ("But there are no images in Core Data... ------")
+            if let imageURL = photoToLoad.imageURL {
+                let url = URL(string: imageURL)
                 
+                let imageData = try? Data(contentsOf: url!)
+                photoToLoad.imageData = imageData as! NSData
+                delegate.stack.save()
                 
-            })
+                performUIUpdatesOnMain {
+                    cell.photoImage.image = UIImage(data: imageData!)
+                    cell.hideActivityIndicator()
+                }
+            }
         }
         
         return cell
     }
-    
 }
 
 extension PhotoAlbumViewController: NSFetchedResultsControllerDelegate {
@@ -221,21 +288,25 @@ extension PhotoAlbumViewController: NSFetchedResultsControllerDelegate {
             
         case .insert:
             insertedIndexPath.append(newIndexPath!)
-            print ("inserted new index path")
+            print ("inserted new index path: \(String(describing: newIndexPath))")
+            break
         
         case .delete:
-            deletedIndexPath.append(newIndexPath!)
-            print ("deleted an index path")
+            deletedIndexPath.append(indexPath!)
+            print ("deleted an index path: \(String(describing: indexPath))")
+            break
             
         case .update:
-            updatedIndexPath.append(newIndexPath!)
-            print ("Updated an index path")
+            updatedIndexPath.append(indexPath!)
+            print ("Updated an index path: \(String(describing: indexPath))")
+            break
         
         default:
             break
         }
     }
     
+    // When the FRC receives a notification from the coordinator on a change within the context, this method is called to update the UI collection view
     func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
         
         photosCollectionView.performBatchUpdates({ 

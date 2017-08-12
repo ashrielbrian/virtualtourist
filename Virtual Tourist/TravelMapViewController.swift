@@ -25,15 +25,35 @@ class TravelMapViewController: UIViewController, MKMapViewDelegate {
         
         mapView.delegate = self
         
-        // Setting up the Core Data stack
-        // let stack = delegate.stack
-        
         // Setting up the Long Press gesture recognizer, and attaching it to the MapView
         let longPress = UILongPressGestureRecognizer(target: self, action: #selector(addAnnotationOnMap))
         longPress.minimumPressDuration = 1.5
         mapView.addGestureRecognizer(longPress)
         
-        // TO-DO: Fetch all the pins from Core Data, and store it in the pinsArray
+        loadPins()
+    }
+    
+    // MARK: Fetch all the pins from Core Data, and store it in the pinsArray
+    func loadPins() {
+        var annotations = [MKPointAnnotation]()
+        let fr = NSFetchRequest<NSFetchRequestResult>(entityName: "Pin")
+        fr.sortDescriptors = [NSSortDescriptor(key: "latitude", ascending: true)]
+        
+        do {
+            pinsArray = try delegate.stack.context.fetch(fr) as! [Pin]
+        } catch let err{
+            print (err.localizedDescription)
+        }
+        
+        for pin in pinsArray {
+            let annotation = MKPointAnnotation()
+            let coordinate = CLLocationCoordinate2D(latitude: pin.latitude, longitude: pin.longitude)
+            annotation.coordinate = coordinate
+            
+            annotations.append(annotation)
+        }
+        
+        mapView.addAnnotations(annotations)
     }
     
     func addAnnotationOnMap(_ gestureRecognizer: UIGestureRecognizer) {
@@ -53,56 +73,14 @@ class TravelMapViewController: UIViewController, MKMapViewDelegate {
             mapView.addAnnotation(annotation)
             
             // TO-DO: the moment the pin is dropped, begin downloading the stuff to do
-            stack.performBackgroundBatchOperation(batchCompletionHandler: {
-                (workerContext) in
-                
-                let pin = Pin(latitude: touchCoordinate.latitude, longitude: touchCoordinate.longitude, context: workerContext)
-                self.pinsArray.append(pin)
-                print ("Here is the pin's latitude: \(pin.latitude)")
-
-            })
-            
-            //stack.save()
-            
-            // TO-DO: Run the network request to Flickr right after the pin drops
-
-            /*
-            flickrClientHandler.getImages(location: touchCoordinate) {
-                (success, errorString, imagesURL) in
-                print("BEFORE SUCCESS")
-                if success {
-                    guard (errorString == nil) else {
-                        print ("Error found in network request.")
-                        return
-                    }
-                    
-                    guard let imagesURL = imagesURL else{
-                        print ("No images returned")
-                        return
-                    }
-                    
-                    // With the array of media files obtained, begin a background batch operation to download the data, and save it to CoreData
-                    print ("HELLOOOOOOOOOO= ==== == = == =")
-                    self.downloadAndConvertImages(imagesURL, pin)
-                    
-                } else {
-                    print ("Network request to Flickr failed. Try again later.")
-                }
-                
-            }
-            */
-            
+          
+            let pin = Pin(latitude: touchCoordinate.latitude, longitude: touchCoordinate.longitude, context: stack.context)
+            self.pinsArray.append(pin)
             
             print("Here's the pinsArray: \(String(describing: pinsArray))")
-            // 1. create the background batch processing
-            // 2. Link background network downloading
-            
-            
-            
+
         }
     }
-    
-    
     
     func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
         

@@ -50,7 +50,7 @@
                             <constraint firstItem="wfy-db-euE" firstAttribute="top" secondItem="Y24-vT-gJE" secondAttribute="bottom" id="orQ-h2-xA5"/>
                         </constraints>
                     </view>
-                    <navigationItem key="navigationItem" id="0wt-yN-AM8"/>
+                    <navigationItem key="navigationItem" title="Virtual Tourist" id="0wt-yN-AM8"/>
                     <connections>
                         <outlet property="mapView" destination="Y24-vT-gJE" id="zxI-LL-9cs"/>
                         <segue destination="vUy-Bn-jRY" kind="show" identifier="showLocationPhotos" id="ulm-tX-KB0"/>
@@ -143,6 +143,8 @@
                         </constraints>
                     </view>
                     <connections>
+                        <outlet property="flowLayout" destination="5hH-YA-Q30" id="KKs-ho-9DZ"/>
+                        <outlet property="mapView" destination="blD-JF-qnA" id="kRT-yC-ZWS"/>
                         <outlet property="newCollectionButton" destination="m2U-QS-Zdd" id="sNk-N5-d7M"/>
                         <outlet property="photosCollectionView" destination="LPY-El-4yg" id="U99-Qu-hzt"/>
                     </connections>

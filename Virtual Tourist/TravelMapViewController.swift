@@ -73,9 +73,10 @@ class TravelMapViewController: UIViewController, MKMapViewDelegate {
             mapView.addAnnotation(annotation)
             
             // TO-DO: the moment the pin is dropped, begin downloading the stuff to do
-          
-            let pin = Pin(latitude: touchCoordinate.latitude, longitude: touchCoordinate.longitude, context: stack.context)
-            self.pinsArray.append(pin)
+            DispatchQueue.main.async {
+                let pin = Pin(latitude: touchCoordinate.latitude, longitude: touchCoordinate.longitude, context: stack.context)
+                self.pinsArray.append(pin)
+            }
             
             print("Here's the pinsArray: \(String(describing: pinsArray))")
 

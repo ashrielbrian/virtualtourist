@@ -112,10 +112,12 @@ class PhotoAlbumViewController: UIViewController {
         
         /* download picture and save INSIDE performBackgroundBatchOperation */
         let stack = self.delegate.stack
-
-        for eachURL in imagesURL {
-            let photo = Photo(url: eachURL, context: stack.context)
-            photo.pin = pin
+        
+        DispatchQueue.main.async {
+            for eachURL in imagesURL {
+                let photo = Photo(url: eachURL, context: stack.context)
+                photo.pin = pin
+            }
         }
         
         completionHandlerForSaveURL()
@@ -239,19 +241,19 @@ extension PhotoAlbumViewController: UICollectionViewDataSource {
             
             print ("There's image data alright!! ---- ")
             performUIUpdatesOnMain {
-                cell.photoImage.image = UIImage(data: imageData as Data)
                 cell.hideActivityIndicator()
+                cell.photoImage.image = UIImage(data: imageData as Data)
             }
         } else {
             
             flickrClientHandler.getImageDataFrom(url: photoToLoad.imageURL!, completionHandlerForGetImageData: { (imageData) in
                 
                 performUIUpdatesOnMain {
-                    cell.photoImage.image = UIImage(data: imageData)
                     cell.hideActivityIndicator()
+                    cell.photoImage.image = UIImage(data: imageData)
+                    photoToLoad.imageData = imageData as NSData
                 }
                 
-                photoToLoad.imageData = imageData as NSData
                 self.delegate.stack.save()
             })
             
